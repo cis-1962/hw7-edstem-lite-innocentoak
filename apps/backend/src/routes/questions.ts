@@ -9,7 +9,7 @@ router.get('/', async (req, res) => {
 
     try {
 
-        const questions = await Question.find();
+        const questions = await Question.find().populate('author', 'username');
 
         res.json(questions);
 
@@ -62,7 +62,7 @@ router.post('/answer', requireAuth, async (req, res) => {
 
     try {
 
-        const question = await Question.findById(_id);
+        const question = await Question.findById(_id).populate('author', 'username');
 
         if (!question) {
 
@@ -74,7 +74,9 @@ router.post('/answer', requireAuth, async (req, res) => {
 
         await question.save();
 
-        res.send('updated answer successfully');
+        const updatedQuestion = await Question.findById(_id).populate('author', 'username');
+
+        res.json(updatedQuestion);
 
     } catch (error) {
 

@@ -8,6 +8,8 @@ const router = express.Router();
 // signing up
 router.post('/signup', async (req, res) => {
 
+    console.log('got to signup', req.body);
+
     const { username, password } = req.body;
 
     try {
@@ -18,18 +20,23 @@ router.post('/signup', async (req, res) => {
 
         await user.save();
 
+        console.log('user created:', user);
+
         res.status(201).send('user created successfully');
 
     } catch (error) {
 
+        console.error('could not create user:', error);
+
         res.status(500).send(error.message);
 
     }
-
 });
 
 // logging in
 router.post('/login', async (req, res) => {
+
+    console.log('got to login', req.body);
 
     const { username, password } = req.body;
 
@@ -37,29 +44,47 @@ router.post('/login', async (req, res) => {
 
         const user = await User.findOne({ username });
 
-        if (user && await bcrypt.compare(password, user.password)) {
+        console.log('User found:', user);
+
+        if (!user) {
+
+            console.log('login failed: could not find user');
+
+            return res.status(401).json({ message: 'invalid username or password' });
+
+        }
+
+        const passwordMatch = await bcrypt.compare(password, user.password);
+
+        if (passwordMatch) {
 
             if (req.session) {
 
                 req.session.userId = user._id.toString();
 
-                res.send('you logged in in successfully');
+                res.json({ message: 'logged in successfully', user: { username: user.username, _id: user._id } });
 
             } else {
 
-                res.status(500).send('session could not be created');
+                console.log('could not create session');
+
+                res.status(500).json({ message: 'could not create session' });
 
             }
 
         } else {
 
-            res.status(401).send('credentials invalid');
+            console.log('Login failed: incorrect password');
+
+            res.status(401).json({ message: 'invalid username or password' });
 
         }
 
     } catch (error) {
 
-        res.status(500).send(error.message);
+        console.error('Login error:', error);
+
+        res.status(500).json({ message: 'error logging in', error: error.message });
 
     }
 });
@@ -70,6 +95,40 @@ router.post('/logout', requireAuth, (req, res) => {
     req.session = null;
 
     res.send('log out success');
+
+});
+
+// Check login status
+router.get('/status', (req, res) => {
+
+    if (req.session && req.session.userId) {
+
+        User.findById(req.session.userId)
+            .select('-password')
+            .then(user => {
+                if (user) {
+
+                    res.json({ isLoggedIn: true, user: { username: user.username, _id: user._id } });
+
+                } else {
+
+                    res.status(404).json({ isLoggedIn: false, message: 'User not found' });
+
+                }
+            })
+            .catch(error => {
+
+                console.error('Error fetching user:', error);
+
+                res.status(500).json({ isLoggedIn: false, error: error.message });
+
+            });
+
+    } else {
+
+        res.json({ isLoggedIn: false });
+
+    }
 
 });
 
